@@ -648,7 +648,6 @@
 
   function revealCards(){
     revealed = true;
-    renderEarthDisplay();
     renderAlienDisplay();
   }
 
@@ -659,11 +658,9 @@
   }
 
   document.getElementById('skipEarth').addEventListener('click', () => {
-    revealed = false;
     drawEarth(true);
   });
   document.getElementById('skipAlien').addEventListener('click', () => {
-    revealed = false;
     drawAlien(true);
   });
   document.getElementById('reshuffle').addEventListener('click', () => {
