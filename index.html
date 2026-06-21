@@ -81,6 +81,20 @@
     margin: 0 auto;
   }
 
+  /* ---- top round controls (timer + new round) ---- */
+  .round-controls{
+    display:flex;
+    flex-direction: column;
+    align-items:center;
+    gap: 12px;
+    margin: 28px 0 6px;
+  }
+  .hint{
+    font-size: 13px;
+    color: var(--alien-sub);
+    margin: 0;
+  }
+
   /* ---- boards layout with seam ---- */
   .boards{
     display:grid;
@@ -158,6 +172,13 @@
   .card.pop{
     transform: scale(0.92);
     opacity: 0;
+  }
+  .card.locked{
+    opacity: 0.55;
+  }
+  .card.locked h2,
+  .card.locked .tile{
+    letter-spacing: 0.05em;
   }
 
   .card-inner{
@@ -257,6 +278,12 @@
   }
   button:hover{ filter: brightness(1.08); }
   button:active{ transform: scale(0.96); }
+  button:disabled{
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: none;
+    transform: none;
+  }
   button:focus-visible{
     outline: 2px solid var(--alien-accent);
     outline-offset: 2px;
@@ -374,6 +401,17 @@
     <p class="tagline">Draw an Earth card and a Letter card. Describe the Earth concept using a sentence where each word starts with the letters on the Letter card, in order — an underscore is your choice of letter.</p>
   </header>
 
+  <div class="round-controls">
+    <div class="timer-box">
+      <span id="timeLeft">120</span>
+      <button class="secondary" id="timerToggle" style="padding:8px 14px;">Start</button>
+      <button class="secondary" id="timerReset" style="padding:8px 14px;">Reset</button>
+      <input type="number" id="timerSeconds" value="120" min="10" max="300" step="10" aria-label="Timer seconds">
+    </div>
+    <button class="primary" id="newRound">🛸 New round — draw both</button>
+    <p class="hint">Cards stay hidden until you hit Start, and hide again when time runs out.</p>
+  </div>
+
   <div class="boards">
     <section class="card-zone earth-zone">
       <div class="deck-meta">Earth cards <span class="count"><span id="earthCount">0</span> left</span></div>
@@ -401,25 +439,19 @@
   </div>
 
   <div class="controls">
-    <button class="primary" id="newRound">🛸 New round — draw both</button>
     <button class="secondary" id="reshuffle">🔀 Reshuffle decks</button>
     <button class="secondary" id="toggleRules">❓ How to play</button>
-    <div class="timer-box">
-      <span id="timeLeft">60</span>
-      <button class="secondary" id="timerToggle" style="padding:8px 14px;">Start</button>
-      <button class="secondary" id="timerReset" style="padding:8px 14px;">Reset</button>
-      <input type="number" id="timerSeconds" value="60" min="10" max="300" step="10" aria-label="Timer seconds">
-    </div>
   </div>
 
   <div class="rules-panel hidden" id="rulesPanel">
     <strong>How to play</strong>
     <ol>
       <li>One player is the <strong>Alien</strong>. Everyone else are the <strong>Humans</strong> trying to guess.</li>
-      <li>Draw an Earth card (the secret concept) and a Letter card (a string of letters) — keep the Earth card hidden from the guessers.</li>
+      <li>Hit "New round" to draw a fresh Earth card and Letter card — they stay hidden for now.</li>
+      <li>When everyone's ready, press <strong>Start</strong> on the timer to reveal both cards and begin.</li>
       <li>The Alien describes the Earth concept in a sentence where word #1 starts with the Letter card's first letter, word #2 with the second letter, and so on. An underscore can be any letter the Alien chooses.</li>
       <li>No saying the actual words on the Earth card, and no skipping a letter!</li>
-      <li>Humans shout out guesses until they get it (or time runs out). Start the timer above if you want the pressure on.</li>
+      <li>Humans shout out guesses until they get it. When the timer hits zero, both cards hide again automatically.</li>
       <li>Didn't like a draw? Hit "New Topic" or "New Letter card" to skip just that one, or "New round" to redraw both.</li>
     </ol>
   </div>
@@ -452,7 +484,19 @@
     "Summer Vacation","First Day Of School","Graduation Cap","Taking A Selfie","Video Call",
     "Group Chat","Charging Your Phone","Wifi Password","Video Game Controller","Cartwheel",
     "Treasure Map","Pirate Costume","Superhero Cape","Dress-Up Box","Bubble Bath","Rubber Duck",
-    "Pajama Day","Morning Breath","Sunday Pancakes","Family Game Night","Whoopee Cushion"
+    "Pajama Day","Morning Breath","Sunday Pancakes","Family Game Night","Whoopee Cushion",
+    "Sledding","Blanket Fort","Connect Four","Tic-Tac-Toe","Hot Potato","Musical Chairs",
+    "Duck Duck Goose","Red Light Green Light","Freeze Dance","Simon Says","Charades",
+    "Pin The Tail On The Donkey","Piñata","Cannonball Into The Pool","Pool Noodle","Sunscreen",
+    "Beach Ball","Playing Catch","Kickball","Dodgeball","Four Square","Jenga","Checkers",
+    "Crossword Puzzle","Jigsaw Puzzle","Word Search","Connect The Dots","Paint By Numbers",
+    "Finger Painting","Sidewalk Chalk","Lemonade","S'mores","Hot Cocoa","Snow Angel",
+    "Building An Igloo","Mittens","Earmuffs","Scarf","Rain Boots","Carousel Ride",
+    "Ferris Wheel","County Fair","Farmers Market","Petting Zoo","Hayride","Apple Picking",
+    "Pumpkin Patch","Raking Leaves","Fireworks Show","Parade","Marching Band","Pep Rally",
+    "Yearbook","Locker Combination","Hall Pass","Substitute Teacher","Fire Drill",
+    "Times Tables","Vending Machine","Water Fountain","Birthday Card","Thank You Note",
+    "Postcard","Pen Pal"
   ];
 
   function shuffle(arr){
@@ -494,7 +538,7 @@
     return pool;
   }
 
-  const ALIEN_CARDS = buildAlienPool(70);
+  const ALIEN_CARDS = buildAlienPool(120);
 
   // ---- deck state ----
   function makeDeck(items){
@@ -536,53 +580,106 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
 
-  function renderEarth(animate){
-    const show = () => {
-      earthTextEl.textContent = draw(earthDeck, HUMAN_CARDS);
-      earthCountEl.textContent = remaining(earthDeck);
-      earthCardEl.classList.remove('pop');
-    };
-    if(animate){
-      earthCardEl.classList.add('pop');
-      setTimeout(show, 180);
+  let currentEarthCard = null;
+  let currentAlienLetters = null;
+  let revealed = false;
+
+  function renderEarthDisplay(){
+    if(revealed && currentEarthCard){
+      earthTextEl.textContent = currentEarthCard;
+      earthCardEl.classList.remove('locked');
     } else {
-      show();
+      earthTextEl.textContent = '🔒 Hidden';
+      earthCardEl.classList.add('locked');
     }
   }
 
-  function renderAlien(animate){
-    const show = () => {
-      const letters = draw(alienDeck, ALIEN_CARDS);
-      alienTilesEl.innerHTML = '';
-      letters.forEach(ch => {
+  function renderAlienDisplay(){
+    alienTilesEl.innerHTML = '';
+    if(revealed && currentAlienLetters){
+      currentAlienLetters.forEach(ch => {
         const tile = document.createElement('div');
         tile.className = 'tile' + (ch === '_' ? ' wild' : '');
         tile.textContent = ch;
         alienTilesEl.appendChild(tile);
       });
+      alienCardEl.classList.remove('locked');
+    } else {
+      const len = currentAlienLetters ? currentAlienLetters.length : 7;
+      for(let i = 0; i < len; i++){
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.textContent = '•';
+        alienTilesEl.appendChild(tile);
+      }
+      alienCardEl.classList.add('locked');
+    }
+  }
+
+  function drawEarth(animate){
+    const apply = () => {
+      currentEarthCard = draw(earthDeck, HUMAN_CARDS);
+      earthCountEl.textContent = remaining(earthDeck);
+      renderEarthDisplay();
+      earthCardEl.classList.remove('pop');
+    };
+    if(animate){
+      earthCardEl.classList.add('pop');
+      setTimeout(apply, 180);
+    } else {
+      apply();
+    }
+  }
+
+  function drawAlien(animate){
+    const apply = () => {
+      currentAlienLetters = draw(alienDeck, ALIEN_CARDS);
       alienCountEl.textContent = remaining(alienDeck);
+      renderAlienDisplay();
       alienCardEl.classList.remove('pop');
     };
     if(animate){
       alienCardEl.classList.add('pop');
-      setTimeout(show, 180);
+      setTimeout(apply, 180);
     } else {
-      show();
+      apply();
     }
   }
 
-  document.getElementById('skipEarth').addEventListener('click', () => renderEarth(true));
-  document.getElementById('skipAlien').addEventListener('click', () => renderAlien(true));
-  document.getElementById('newRound').addEventListener('click', () => {
-    renderEarth(true);
-    renderAlien(true);
+  function revealCards(){
+    revealed = true;
+    renderEarthDisplay();
+    renderAlienDisplay();
+  }
+
+  function hideCards(){
+    revealed = false;
+    renderEarthDisplay();
+    renderAlienDisplay();
+  }
+
+  document.getElementById('skipEarth').addEventListener('click', () => {
+    revealed = false;
+    drawEarth(true);
+  });
+  document.getElementById('skipAlien').addEventListener('click', () => {
+    revealed = false;
+    drawAlien(true);
   });
   document.getElementById('reshuffle').addEventListener('click', () => {
     earthDeck = makeDeck(HUMAN_CARDS);
     alienDeck = makeDeck(ALIEN_CARDS);
-    renderEarth(true);
-    renderAlien(true);
+    revealed = false;
+    drawEarth(true);
+    drawAlien(true);
+    resetTimer();
     showToast("Both decks reshuffled!");
+  });
+  document.getElementById('newRound').addEventListener('click', () => {
+    revealed = false;
+    drawEarth(true);
+    drawAlien(true);
+    resetTimer();
   });
 
   const rulesPanel = document.getElementById('rulesPanel');
@@ -590,13 +687,47 @@
     rulesPanel.classList.toggle('hidden');
   });
 
+  // ---- alarm sound (generated tone, no external file needed) ----
+  let audioCtx = null;
+  function getAudioCtx(){
+    if(!audioCtx){
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(Ctx) audioCtx = new Ctx();
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+  function playAlarm(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    try{
+      const now = ctx.currentTime;
+      [0, 0.32, 0.64].forEach(t => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.3, now + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.26);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + t);
+        osc.stop(now + t + 0.3);
+      });
+    } catch(e){ /* audio unsupported or blocked, ignore */ }
+  }
+
   // ---- timer ----
   const timeLeftEl = document.getElementById('timeLeft');
   const timerToggleBtn = document.getElementById('timerToggle');
   const timerResetBtn = document.getElementById('timerReset');
   const timerSecondsInput = document.getElementById('timerSeconds');
 
-  let timeLeft = parseInt(timerSecondsInput.value, 10);
+  const DEFAULT_SECONDS = 120;
+  let timeLeft = parseInt(timerSecondsInput.value, 10) || DEFAULT_SECONDS;
   let timerInterval = null;
 
   function renderTime(){
@@ -610,41 +741,54 @@
     timerToggleBtn.textContent = 'Start';
   }
 
+  function resetTimer(){
+    stopTimer();
+    timeLeft = parseInt(timerSecondsInput.value, 10) || DEFAULT_SECONDS;
+    renderTime();
+    hideCards();
+    timerToggleBtn.disabled = false;
+  }
+
   timerToggleBtn.addEventListener('click', () => {
+    getAudioCtx(); // unlock audio on this user gesture so the alarm can play later
     if(timerInterval){
       stopTimer();
+      hideCards();
       return;
     }
     if(timeLeft <= 0){
-      timeLeft = parseInt(timerSecondsInput.value, 10) || 60;
+      timeLeft = parseInt(timerSecondsInput.value, 10) || DEFAULT_SECONDS;
     }
+    revealCards();
     timerToggleBtn.textContent = 'Pause';
     timerInterval = setInterval(() => {
       timeLeft--;
       renderTime();
       if(timeLeft <= 0){
         stopTimer();
+        hideCards();
+        playAlarm();
+        timerToggleBtn.disabled = true;
         showToast("Time's up!");
       }
     }, 1000);
   });
 
   timerResetBtn.addEventListener('click', () => {
-    stopTimer();
-    timeLeft = parseInt(timerSecondsInput.value, 10) || 60;
-    renderTime();
+    resetTimer();
   });
 
   timerSecondsInput.addEventListener('change', () => {
     if(!timerInterval){
-      timeLeft = parseInt(timerSecondsInput.value, 10) || 60;
+      timeLeft = parseInt(timerSecondsInput.value, 10) || DEFAULT_SECONDS;
       renderTime();
+      timerToggleBtn.disabled = false;
     }
   });
 
   // ---- initial draw ----
-  renderEarth(false);
-  renderAlien(false);
+  drawEarth(false);
+  drawAlien(false);
   renderTime();
 })();
 </script>
